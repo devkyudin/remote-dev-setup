@@ -4,7 +4,7 @@
 >
 > The architecture is provider-agnostic: anyone should be able to deploy it on any suitable hardware, whether rented or owned. Concrete providers, regions and machines belong to a deployment's configuration, not to this document. Provider-specific steps live in [provider adapters](../providers/README.md).
 >
-> Last updated: 2026-10-10 (LAB host selection).
+> Last updated: 2026-10-10 (LAB zone address plan, provisional overlay choice).
 
 ## Goals
 
@@ -77,6 +77,24 @@
 | Workspace = VM cloned from a template via cloud-init | Agents and CI need Docker inside (Testcontainers, `docker build`). In a plain container that means `--privileged`, i.e. effectively root on the host. A VM gives strong isolation without extra complexity. Upgrade path: Kata / Firecracker. |
 | Proxmox web UI and API reachable only via the overlay network | The first rule after installation. |
 | VMs reach the internet through NAT behind the host's single public IP | No extra public IPs to pay for: inbound access goes through the overlay network anyway. Many providers block or flag traffic from MAC addresses they did not assign, so VMs must never appear on the provider network with their own MAC; NAT on the host guarantees that. |
+
+**Zone address plan.** VMs live on private subnets behind the host's NAT, one subnet per zone. The plan for every zone is fixed now, even for zones created much later, because renumbering a network that VMs already use is the most painful change to defer.
+
+| Zone | VNet | Subnet | Created in | First user |
+|---|---|---|---|---|
+| mgmt | — (the host itself) | — | — | Proxmox, overlay client |
+| dev | `vndev` | 10.42.20.0/24 | L0b-1 | dev VM (L2) |
+| platform | `vnplat` | 10.42.30.0/24 | L4 | observability, dev databases |
+| runners | `vnrun` | 10.42.40.0/23 | L5/L7 | ephemeral VMs (many, short-lived) |
+| sandbox | `vnsbx` | 10.42.50.0/24 | L9+ | k3s and experiments |
+| test | `vntest` | 10.42.90.0/24 | L0b-1 | throwaway VMs, the P5 exam |
+
+- **One range per node:** 10.42.0.0/16 for the first LAB node; 10.43.0.0/16 is reserved for a second node. Each node routes its own range, so the two never overlap.
+- **Why 10.42.0.0/16:** it is unlikely to collide with home and office networks (192.168.x.x, 10.0.x.x), which matters once the host routes LAB subnets onto the overlay network (L2). It also stays clear of the overlay network's own range (Tailscale uses 100.64.0.0/10).
+- **Addresses are assigned by the host** over DHCP, backed by the hypervisor's address registry (IPAM). A VM that needs a stable address gets a reservation in the registry, not a static configuration inside the VM.
+- **No inbound exposure:** no port on the host's public address is forwarded to a VM. VMs are reached only over the overlay network. VMs use IPv4 only; IPv6 stays on the host.
+- **Known gap until L1:** NAT needs the host to forward traffic arriving on its public interface, so a machine in the provider's network segment could route traffic into a VNet. Host automation (L1) restricts that path to replies to connections the VMs opened, before the first VM that is not a throwaway test VM.
+- **Zones are not isolated yet.** Separate VNets do **not** mean separate security zones: the host routes traffic between them, and nothing restricts it until firewall policy between VNets is enforced (L6/L8). Until then, agent workspaces, ephemeral runners and any other workload that runs agent-authored or untrusted code must not be placed on LAB VNets. The step that first places such workloads enforces isolation between the runners zone and the other zones first, or depends on a step that does.
 
 **Hardware requirements** (sized for a .NET + React workload; adjust for your stack):
 
@@ -163,7 +181,7 @@ Prices vary by provider, region and time, so this document lists cost items rath
 
 ## Open Questions
 
-- Tailscale or self-hosted Headscale.
+- Encryption at rest of LAB disks. *Threat:* rented disks are reused by the provider after the contract ends, so data left on them could reach the next customer. *Obstacle:* the Proxmox installer does not support an encrypted root, and unlocking the disks after every reboot would have to go through the out-of-band console.
 - Runner-manager: webhook (via a tunnel) or GitHub API polling.
 - Final observability stack.
 - Model budget and billing mode for background agents.
@@ -172,5 +190,6 @@ Prices vary by provider, region and time, so this document lists cost items rath
 
 Resolved:
 
+- Overlay network, *provisionally*: Tailscale (hosted), with the LAB host joined as a tagged node so that it has no key expiry and is not tied to a personal identity. Self-hosted Headscale remains an option: the specs require "an overlay network", not a product, so switching later does not change them.
 - IDE: JetBrains Gateway (Rider) is primary; VS Code Remote-SSH is the fallback when latency makes Gateway laggy. The dev VM supports both.
 - Deployment-specific configuration: provider-specific knowledge lives in public [provider adapters](../providers/README.md) that fill named slots of the generic runbooks; real deployment values (IPs, hostnames, account IDs) never enter the repository and live in the password manager or the overlay network's naming. Where provider-specific *code* (OpenTofu modules, Ansible vars) lives is decided at L1/L3.

@@ -47,7 +47,7 @@ Prices, offer names, stock and similar facts change over time. Every such fact i
 
 | Provider | Adapter files | Notes |
 |---|---|---|
-| `ovh` | [`lab-host.md`](ovh/lab-host.md) | `order` slot filled; other slots pending L0b |
+| `ovh` | [`lab-host.md`](ovh/lab-host.md) | `order`, `oob` (access), `install` and `network` filled; `edge-firewall` and `recovery` pending L0b-2; `private-network` pending L9+ |
 
 ## Reference deployment
 
