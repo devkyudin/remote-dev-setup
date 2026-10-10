@@ -2,7 +2,7 @@
 
 > The backlog for moving toward the [target architecture](architecture.md). It will later move to GitHub Issues/Projects, where agents can pick up tasks too.
 >
-> Last updated: 2026-10-10 (L0 split into L0a/L0b).
+> Last updated: 2026-10-10 (L0b split into L0b-1/L0b-2; L1 depends on L0b-2).
 
 ## How We Work
 
@@ -41,8 +41,9 @@ Applies what was first practiced on LAB. Always one step behind the LAB ladder.
 | # | Item | Learn | Immediate value | Status | Change |
 |---|---|---|---|---|---|
 | L0a | **By hand:** set a budget, apply the hard filters, rank candidates, measure latency to candidate regions; choose, order and accept the LAB host (rented or own). Write the method down in the [LAB host runbook](runbooks/lab-host.md) and the decision in a [provider adapter](../providers/README.md) | provider evaluation, hardware sizing | a host ready for bootstrap | `done` | `lab-host-selection` |
-| L0b | **By hand** (depends on L0a): learn the out-of-band console (rescue / KVM / IPMI), install Proxmox with mirrored NVMe, set up host networking with NAT for VMs, join the overlay network, lock down the Proxmox web UI; practice recovery. Fill the runbook's bootstrap slots | Linux, networking, Proxmox | understanding of what to automate | `todo` | `lab-host-bootstrap` |
-| L1 | Ansible for the LAB host (depends on L0b): users, SSH, firewall, updates | idempotency, roles, inventory | reproducible host | `todo` | |
+| L0b-1 | **By hand** (depends on L0a): reconnaissance of the out-of-band console, rescue system, disks and installer options; install Proxmox VE on mirrored NVMe and check it against the acceptance criteria; VM networking with NAT and a zone address plan; join the overlay network; lock down the web UI and SSH. Fill the runbook's bootstrap steps 1–5 | Linux, networking, Proxmox | a host that is installed and safe to leave on the internet | `in progress` | `lab-host-bootstrap` |
+| L0b-2 | **By hand** (depends on L0b-1): the provider edge firewall, disk and array alerts, recovery drills through the console, and a rebuild exam. Fill bootstrap steps 6–7 | recovery, monitoring | confidence to break and repair the host | `todo` | `lab-host-recovery` |
+| L1 | Ansible for the LAB host (depends on L0b-2: practise recovery before automating the firewall, since an Ansible mistake can lock you out as easily as a manual one): users, SSH, firewall, updates. The firewall role also closes forwarding from the public bridge into VNets (only replies to connections VMs opened), which must be done before the first VM that is not a throwaway test VM | idempotency, roles, inventory | reproducible host | `todo` | |
 | L2 | Dev VM from a template (cloud-init) + Ansible role, connect the IDE | VM templates, cloud-init | **thin client works** | `todo` | |
 | L3 | OpenTofu: GitHub org as code (rulesets, runner groups, environments), DNS, SOPS + age, encrypted remote state; repo hygiene (gitleaks, secret scanning, `.gitignore`, license) | state, providers, secrets | GitHub as code | `todo` | |
 | L4 | Platform VM: Docker Compose with OTel Collector, Grafana, Prometheus, Loki, Tempo + PG/Redis for dev | Compose, OpenTelemetry | metrics and logs | `todo` | |
@@ -54,6 +55,6 @@ Applies what was first practiced on LAB. Always one step behind the LAB ladder.
 
 ## Current Parallelism
 
-**P0** and **L0** are independent and can run in parallel. Everything else is sequential.
+**P0** and the LAB ladder are independent and can run in parallel. Everything else is sequential.
 
-L0 is split into **L0a** (`lab-host-selection`) and **L0b** (`lab-host-bootstrap`), which run in sequence: with P0 active, the WIP limit of 2 leaves one slot for the LAB ladder.
+L0 is split into **L0a** (`lab-host-selection`, done), **L0b-1** (`lab-host-bootstrap`) and **L0b-2** (`lab-host-recovery`), which run in sequence: with P0 active, the WIP limit of 2 leaves one slot for the LAB ladder. L0b-2 is proposed when L0b-1 is close to done, because reconnaissance may change its plan.
