@@ -2,7 +2,7 @@
 
 > The backlog for moving toward the [target architecture](architecture.md). It will later move to GitHub Issues/Projects, where agents can pick up tasks too.
 >
-> Last updated: 2026-10-10.
+> Last updated: 2026-10-10 (L0 split into L0a/L0b).
 
 ## How We Work
 
@@ -40,8 +40,9 @@ Applies what was first practiced on LAB. Always one step behind the LAB ladder.
 
 | # | Item | Learn | Immediate value | Status | Change |
 |---|---|---|---|---|---|
-| L0 | **By hand:** measure latency to candidate regions, choose and obtain the LAB host (rented or own), install Proxmox and the overlay network, lock down the Proxmox web UI; learn the out-of-band console (rescue / KVM / IPMI). Write everything down in a runbook | Linux, networking, Proxmox | understanding of what to automate | `todo` | |
-| L1 | Ansible for the LAB host: users, SSH, firewall, updates | idempotency, roles, inventory | reproducible host | `todo` | |
+| L0a | **By hand:** set a budget, apply the hard filters, rank candidates, measure latency to candidate regions; choose, order and accept the LAB host (rented or own). Write the method down in the [LAB host runbook](runbooks/lab-host.md) and the decision in a [provider adapter](../providers/README.md) | provider evaluation, hardware sizing | a host ready for bootstrap | `done` | `lab-host-selection` |
+| L0b | **By hand** (depends on L0a): learn the out-of-band console (rescue / KVM / IPMI), install Proxmox with mirrored NVMe, set up host networking with NAT for VMs, join the overlay network, lock down the Proxmox web UI; practice recovery. Fill the runbook's bootstrap slots | Linux, networking, Proxmox | understanding of what to automate | `todo` | `lab-host-bootstrap` |
+| L1 | Ansible for the LAB host (depends on L0b): users, SSH, firewall, updates | idempotency, roles, inventory | reproducible host | `todo` | |
 | L2 | Dev VM from a template (cloud-init) + Ansible role, connect the IDE | VM templates, cloud-init | **thin client works** | `todo` | |
 | L3 | OpenTofu: GitHub org as code (rulesets, runner groups, environments), DNS, SOPS + age, encrypted remote state; repo hygiene (gitleaks, secret scanning, `.gitignore`, license) | state, providers, secrets | GitHub as code | `todo` | |
 | L4 | Platform VM: Docker Compose with OTel Collector, Grafana, Prometheus, Loki, Tempo + PG/Redis for dev | Compose, OpenTelemetry | metrics and logs | `todo` | |
@@ -54,3 +55,5 @@ Applies what was first practiced on LAB. Always one step behind the LAB ladder.
 ## Current Parallelism
 
 **P0** and **L0** are independent and can run in parallel. Everything else is sequential.
+
+L0 is split into **L0a** (`lab-host-selection`) and **L0b** (`lab-host-bootstrap`), which run in sequence: with P0 active, the WIP limit of 2 leaves one slot for the LAB ladder.
