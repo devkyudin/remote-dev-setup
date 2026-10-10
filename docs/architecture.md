@@ -2,9 +2,9 @@
 
 > Status: vision. This document describes **where** we are heading. What is actually implemented is captured by the specs in `openspec/specs/`. The order of work lives in [roadmap.md](roadmap.md).
 >
-> The architecture is provider-agnostic: anyone should be able to deploy it on any suitable hardware, whether rented or owned. Concrete providers, regions and machines belong to a deployment's configuration, not to this document.
+> The architecture is provider-agnostic: anyone should be able to deploy it on any suitable hardware, whether rented or owned. Concrete providers, regions and machines belong to a deployment's configuration, not to this document. Provider-specific steps live in [provider adapters](../providers/README.md).
 >
-> Last updated: 2026-10-10.
+> Last updated: 2026-10-10 (LAB host selection).
 
 ## Goals
 
@@ -55,14 +55,15 @@
 ## Core Principles
 
 1. **PROD is independent of LAB.** If LAB is down, prod keeps running and deploying. Images live in GHCR; deploys run on GitHub-hosted runners or via a pull model and are never routed through LAB.
-2. **The agent workspace is the isolation unit.** One ephemeral VM per task: its own repo checkout and branch, a short-lived GitHub App token, egress only through an allowlist, resource limits. Pair mode (a) and background mode (b) differ only in who starts the workspace and whether a human is attached.
-3. **Agents never get the owner's credentials.** No age key, no prod secrets, no access to the Proxmox API, the dev VM or prod. Agents **propose** changes via PRs; they never **apply** them.
-4. **CI runners and agents share one ephemeral runner pool.** Event → clean VM → work → artifact or PR → VM destroyed.
-5. **The repository is public.** No plaintext secrets, tfstate, private keys, real IPs or personal details. Public Actions logs are public too, so infra plan/apply never runs there.
-6. **Provider-agnostic.** No hard dependency on a specific hosting provider. Provider-specific pieces (provisioning APIs, snapshot features, rescue access) are isolated behind variables or swappable modules and documented as examples.
-7. **Industry standards over niche tools:** GitHub, OpenTofu, Ansible, Docker Compose, Proxmox.
-8. **Manual first, then code.** You cannot automate what you have never done by hand.
-9. **A backup is only a verified restore**, stored off-site and protected from deletion by the source host.
+2. **LAB and PROD do not share a provider account.** They are hosted at different providers, or at least under different accounts, so that a suspended account, a billing dispute or a provider-wide outage cannot take down both.
+3. **The agent workspace is the isolation unit.** One ephemeral VM per task: its own repo checkout and branch, a short-lived GitHub App token, egress only through an allowlist, resource limits. Pair mode (a) and background mode (b) differ only in who starts the workspace and whether a human is attached.
+4. **Agents never get the owner's credentials.** No age key, no prod secrets, no access to the Proxmox API, the dev VM or prod. Agents **propose** changes via PRs; they never **apply** them.
+5. **CI runners and agents share one ephemeral runner pool.** Event → clean VM → work → artifact or PR → VM destroyed.
+6. **The repository is public.** No plaintext secrets, tfstate, private keys, real IPs or personal details. Public Actions logs are public too, so infra plan/apply never runs there.
+7. **Provider-agnostic.** No hard dependency on a specific hosting provider. Provider-specific pieces (provisioning APIs, snapshot features, rescue access) are isolated behind variables or swappable modules and documented as examples in [provider adapters](../providers/README.md).
+8. **Industry standards over niche tools:** GitHub, OpenTofu, Ansible, Docker Compose, Proxmox.
+9. **Manual first, then code.** You cannot automate what you have never done by hand.
+10. **A backup is only a verified restore**, stored off-site and protected from deletion by the source host.
 
 ## Components and Decisions
 
@@ -75,6 +76,7 @@
 | Proxmox | Runs on any x86-64 server. Zone isolation via VMs, snapshots as a safety net while learning, web UI, API for ephemeral VMs. |
 | Workspace = VM cloned from a template via cloud-init | Agents and CI need Docker inside (Testcontainers, `docker build`). In a plain container that means `--privileged`, i.e. effectively root on the host. A VM gives strong isolation without extra complexity. Upgrade path: Kata / Firecracker. |
 | Proxmox web UI and API reachable only via the overlay network | The first rule after installation. |
+| VMs reach the internet through NAT behind the host's single public IP | No extra public IPs to pay for: inbound access goes through the overlay network anyway. Many providers block or flag traffic from MAC addresses they did not assign, so VMs must never appear on the provider network with their own MAC; NAT on the host guarantees that. |
 
 **Hardware requirements** (sized for a .NET + React workload; adjust for your stack):
 
@@ -82,7 +84,7 @@
 |---|---|---|---|
 | RAM | 32 GB | 64 GB | ~54 GB comfortable baseline (host ~4, IDE backend ~8, builds ~8, CI ~12, staging ~8, observability ~8, data ~4), plus 4–8 GB per parallel agent slot |
 | CPU | 8 cores | 12–16 cores | Parallel builds from agents compete with interactive work |
-| Disk | 1 TB NVMe | 2 TB NVMe, mirrored | HDDs make builds and Docker painful |
+| Disk | 512 GB usable on two mirrored NVMe devices | 1–2 TB usable, mirrored NVMe | A single disk failure must not lose the host; HDDs make builds and Docker painful. 512 GB covers the dev VM, CI caches, the platform with bounded retention, and VM templates |
 | Other | — | ECC RAM | |
 | Access | out-of-band console (rescue system / KVM / IPMI) | | Needed to recover from a locked-out firewall or broken SSH |
 
@@ -95,7 +97,9 @@
 | Rented older-generation server (auction/second-hand offers) | Often the best price per GB of RAM, especially when memory prices are high | Older hardware, inventory varies |
 | Cloud VM running 24/7 | Flexible | Usually the most expensive option for an always-on large machine |
 
-Rule of thumb: compare the upfront cost of buying hardware plus power against monthly rent; with volatile RAM prices, renting can win for years. Measure latency from where you work to candidate regions before choosing, since it affects how responsive a remote IDE feels.
+Rule of thumb: compare the upfront cost of buying hardware plus power against monthly rent; with volatile RAM prices, renting can win for years.
+
+Whichever option you pick, the host must pass the **hard filters** (hardware baseline, out-of-band access, Proxmox installable, NAT with one public IP, traffic, independence from PROD) before candidates are ranked by price and hardware. The method is in the [LAB host runbook → Selection](runbooks/lab-host.md#selection). Latency from where you work affects how responsive a remote IDE feels: measure it, but treat it as a tie-breaker between candidates that are otherwise close.
 
 ### PROD Host
 
@@ -160,10 +164,13 @@ Prices vary by provider, region and time, so this document lists cost items rath
 ## Open Questions
 
 - Tailscale or self-hosted Headscale.
-- IDE: Rider via Gateway or VS Code Remote-SSH (latency-sensitive).
 - Runner-manager: webhook (via a tunnel) or GitHub API polling.
 - Final observability stack.
 - Model budget and billing mode for background agents.
 - Off-site provider and append-only mechanism for prod backups.
 - How the current GitHub Actions deploy authenticates to prod; a dedicated deploy user.
-- How deployment-specific configuration (provider, region, machine names) is kept out of the public repo: private overlay repo, encrypted variables, or local-only files.
+
+Resolved:
+
+- IDE: JetBrains Gateway (Rider) is primary; VS Code Remote-SSH is the fallback when latency makes Gateway laggy. The dev VM supports both.
+- Deployment-specific configuration: provider-specific knowledge lives in public [provider adapters](../providers/README.md) that fill named slots of the generic runbooks; real deployment values (IPs, hostnames, account IDs) never enter the repository and live in the password manager or the overlay network's naming. Where provider-specific *code* (OpenTofu modules, Ansible vars) lives is decided at L1/L3.

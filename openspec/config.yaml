@@ -16,8 +16,12 @@ context: |
     Secrets: bootstrap in password manager, infra in SOPS+age, prod in GitHub Environments.
     Public Actions logs are public: infra plan/apply never runs there.
   - Provider-agnostic: no hard dependency on a hosting provider; provider-specific parts are
-    isolated behind variables/modules and documented as examples. No personal details
-    (location, names of the owner's machines/providers/regions) in architecture docs.
+    isolated behind variables/modules and documented as examples. Provider names, products
+    and regions appear only under providers/ (one adapter per provider, filling named slots
+    of generic runbooks; see providers/README.md) and in change artifacts. Architecture docs
+    and generic runbooks (docs/runbooks/) stay provider-free and contain no personal details
+    (location, names of the owner's machines). Real IPs, hostnames, account/customer IDs and
+    order numbers are forbidden everywhere; use placeholders such as <lab-host>.
   - PROD is independent of LAB: prod keeps running and deploying when LAB is down
     (images in GHCR, deploys never routed through LAB).
   - Agents never get owner credentials: no age key, no prod secrets, no Proxmox API,
