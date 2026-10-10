@@ -1,0 +1,53 @@
+schema: spec-driven
+
+context: |
+  Language: en
+  The repository is public: all artifacts, docs, code comments and commit messages
+  MUST be written in English, regardless of the language used in chat with the owner.
+
+  Project: provider-agnostic remote-dev platform — a LAB host (bare metal + Proxmox)
+  for dev/CI/agents/platform, plus a separate PROD host (small VPS).
+  Anyone should be able to deploy it on any suitable hardware, rented or owned.
+  Target architecture: docs/architecture.md. Backlog and order: docs/roadmap.md.
+  Read both before exploring or proposing; flag conflicts instead of silently diverging.
+
+  Cross-cutting principles (every artifact MUST respect them):
+  - Public repository: never plaintext secrets, tfstate, private keys or real IPs/hostnames.
+    Secrets: bootstrap in password manager, infra in SOPS+age, prod in GitHub Environments.
+    Public Actions logs are public: infra plan/apply never runs there.
+  - Provider-agnostic: no hard dependency on a hosting provider; provider-specific parts are
+    isolated behind variables/modules and documented as examples. No personal details
+    (location, names of the owner's machines/providers/regions) in architecture docs.
+  - PROD is independent of LAB: prod keeps running and deploying when LAB is down
+    (images in GHCR, deploys never routed through LAB).
+  - Agents never get owner credentials: no age key, no prod secrets, no Proxmox API,
+    no route to prod. Agents propose changes via PR; only the owner applies them.
+  - Agent workspace (ephemeral VM per task) is the isolation unit; CI runners and agent
+    runners share one ephemeral runner pool.
+  - PROD is brownfield: adopt existing state (inventory, --check, import) before changing it;
+    do not recreate or resize the prod host without explicit decision.
+  - Learning-first and beginner-friendly: manual first, then code; prefer industry-standard
+    tools (GitHub, OpenTofu, Ansible, Docker Compose, Proxmox); tasks should teach, explain
+    the "why", assume no prior IaC experience, and stay small enough to verify in 1-3 sessions.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
